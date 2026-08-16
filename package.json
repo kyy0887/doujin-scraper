@@ -1,0 +1,15 @@
+{
+  "name": "doujin-scraper",
+  "version": "1.0.0",
+  "description": "Scraper untuk doujin.desu.xxx (API terenkripsi) dan nekopoi.care (WordPress) — aman, tanpa dependensi runtime",
+  "main": "lib/scraper.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["scraper", "doujin", "manga", "nekopoi", "fetch"],
+  "license": "MIT"
+}
