@@ -1,106 +1,111 @@
 # Doujin Scraper
 
-Scraper ringan tanpa dependensi untuk mengambil data manga/doujin dan video, dengan keamanan built-in.
+Library scraping **tanpa dependensi runtime** untuk mengambil data manga/doujin dan video, siap dipakai di Node.js 18+ maupun serverless.
 
-- **doujin.desu.xxx** — scraping dari API terenkripsi (XOR + key turunan waktu), pagination via `offset`, output bersih
-- **nekopoi.care** — parsing HTML WordPress (home, kategori, detail post, iframe player), sanitasi ketat
+- **doujin.desu.xxx** — manga/doujin/manhwa via API terenkripsi (dekripsi otomatis, XOR + key turunan waktu)
+- **nekopoi.care** — video via parse HTML WordPress (home, kategori, pencarian, detail, player iframe)
 
-## Fitur
-
-- **Tanpa dependensi runtime** — murni `fetch` + regex, bisa jalan di Node.js 18+, Edge runtime, maupun Vercel serverless
-- **Keamanan bawaan**:
-  - Anti-SSRF: blokir IP private/loopback/link-local, DNS rebinding, port non-80/443
-  - Sanitasi URL: tolak `javascript:`, `data:`, `vbscript:`
-  - Strip HTML dari konten eksternal (sinopsis, judul)
-  - Allowlist host player (iframe) & host gambar
-- **Cache in-memory** dengan TTL (untuk detail yang fetch-nya lambat)
-
-## Instalasi
+## Quickstart
 
 ```bash
-npm install
-# atau tanpa package manager — tidak ada dependensi
+npm run get-secret     # ekstrak & isi DOUJIN_APP_SECRET/DOUJIN_SALT otomatis dari situs
+npm run demo           # lihat contoh hasil scrape manga + video
+npm test               # unit test offline
 ```
 
 ## Konfigurasi
 
-Salin `.env.example` ke `.env` dan isi:
+Cukup satu perintah — script mengambil halaman doujin.desu.xxx, menemukan bundle JS (`/assets/index-*.js`), mengekstrak kedua nilai, memverifikasi ke API asli, lalu mengisi `.env`:
 
-```env
-DOUJIN_APP_SECRET=isi_dari_sumber
-DOUJIN_SALT=isi_dari_sumber
+```bash
+npm run get-secret
 ```
 
-Kedua nilai dipakai untuk dekripsi response API doujin.desu.xxx. Tanpa keduanya, scraper doujin tidak akan berfungsi (muncul warning).
+```env
+DOUJIN_APP_SECRET=   # string 32-hex di dekat "x-app-secret" di bundle situs
+DOUJIN_SALT=         # string "super-secret-salt" di bundle situs
+```
+
+> Nilai ini bukan rahasia server — di-embed di bundle karena browser klien harus bisa mendekripsi response API sendiri. Kalau scraper tiba-tiba gagal dekripsi (situs ganti kunci), jalankan ulang `npm run get-secret`. Scraper nekopoi (video) **tidak butuh** env.
 
 ## Penggunaan
 
-### CommonJS
-
 ```js
-const { scrapeMangaList, scrapeMangaDetail, scrapeChapterImages, scrapeGenres, searchManga } = require('./lib/scraper');
+// Manga (butuh .env terisi)
+import { scrapeMangaList, scrapeMangaDetail, scrapeChapterImages, scrapeGenres, searchManga } from './lib/scraper.js';
 
-// Daftar manga (pagination pakai page, diubah ke offset di dalam)
-const list = await scrapeMangaList({ page: 1, limit: 24, type: 'manga' });
-
-// Detail + daftar chapter
-const detail = await scrapeMangaDetail('slug-manga');
-
-// Gambar chapter (URL signed, valid ±24 jam)
-const chapter = await scrapeChapterImages(12345);
-
-// Genre beserta jumlah komik
+const list = await scrapeMangaList({ page: 1, limit: 24, type: 'manga', genre: 'netorare', sort: 'views' });
+const detail = await scrapeMangaDetail('slug-manga');          // sinopsis, genre, daftar chapter
+const chapter = await scrapeChapterImages(detail.chapters[0].id); // URL gambar chapter
 const genres = await scrapeGenres();
+const hasil = await searchManga('kata kunci');
+
+// Video Neko (tanpa env)
+import { scrapeNekoList, scrapeNekoCategory, scrapeNekoSearch, scrapeNekoDetail, scrapeNekoCategories } from './lib/nekoScraper.js';
+
+const { videos, hasNext } = await scrapeNekoList(1);           // terbaru + pagination
+const kategori = await scrapeNekoCategory('jav', 1);           // per kategori
+const cari = await scrapeNekoSearch('one piece', 1);           // pencarian
+const watch = await scrapeNekoDetail('slug-video');            // detail + daftar player iframe
 ```
 
-### ES Modules
+## Struktur Project
 
-```js
-import { scrapeMangaList } from './lib/scraper.js';
-// atau
-import { scrapeNekoList, scrapeNekoCategory, scrapeNekoDetail, scrapeNekoCategories } from './lib/nekoScraper.js';
-
-// NekoPoi — video terbaru
-const { videos, hasNext } = await scrapeNekoList(1);
-
-// Detail post: judul, thumbnail, sinopsis, daftar iframe player
-const detail = await scrapeNekoDetail('slug-video');
+```
+lib/
+  scraper.js      # doujindesu: dekripsi API + list/detail/chapter/genre/search
+  nekoScraper.js  # nekopoi: parse HTML (list, kategori, search, detail, player)
+  clean.js        # pembersih data: URL http(s) saja + strip tag HTML
+  cache.js        # cache in-memory (Map, TTL) untuk detail neko
+scripts/
+  get-secret.js   # ekstrak & isi key otomatis dari bundle situs
+  demo.js         # contoh pemakaian semua fungsi
+test/
+  scraper.test.js     # dekripsi + mapping doujindesu
+  nekoScraper.test.js # parse HTML nekopoi
+  clean.test.js       # pembersih data
+.github/
+  workflows/ci.yml    # unit test Node 18/20/22 + smoke test live
+.agent/
+  skill/agent.md      # panduan untuk AI agent (baca sebelum coding)
 ```
 
-### Environment di serverless (Vercel/Next.js)
+## Bentuk data
 
-File scraper membaca `process.env` langsung, jadi di Next.js cukup:
+### Manga (doujin.desu.xxx)
 
-```js
-// app/api/manga/route.js
-import { scrapeMangaList } from '@/lib/scraper';
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const data = await scrapeMangaList({ page: 1 });
-  return Response.json({ results: data });
-}
+| Fungsi | Hasil |
+|---|---|
+| `scrapeMangaList({page, query, type, genre, sort, limit})` | `[{title, slug, thumb, rating, type, status, latestChapter}]` — pagination pakai `offset` di dalam |
+| `scrapeMangaDetail(slug)` | `{title, altTitle, thumb, rating, status, type, synopsis, author, artist, genres[], chapters[], views}` |
+| `scrapeChapterImages(id)` | `{images[], mangaSlug, mangaTitle, title, number}` — URL signed, valid ±24 jam, butuh header `Referer` saat di-fetch |
+| `scrapeGenres()` | `[{slug, name, count}]` — diurutkan jumlah terbanyak |
+| `searchManga(query)` | sama dengan `scrapeMangaList` |
+
+### Video (nekopoi.care)
+
+| Fungsi | Hasil |
+|---|---|
+| `scrapeNekoList(page)` | `{videos: [{title, slug, url, thumb, date, synopsis}], hasNext}` |
+| `scrapeNekoCategory(category, page)` | sama — `category`: `hentai`, `jav`, `2d-animation`, `3d-hentai`, `jav-cosplay` |
+| `scrapeNekoSearch(query, page)` | sama — format hasil seperti kategori |
+| `scrapeNekoDetail(slug)` | `{title, slug, thumb, players[], synopsis}` — `players` = iframe embed (`playmogo.com`/`yandex.ru`), 1–2 server per video |
+| `scrapeNekoCategories()` | `[{slug, name}]` |
+
+## Catatan penting
+
+- **Pagination manga:** API doujin.desu.xxx **mengabaikan parameter `page`** — halaman 1 & 2 selalu identik. Scraper sudah otomatis memakai `offset` = `(page-1) * limit`.
+- **Gambar chapter:** URL signed butuh header `Referer: https://doujin.desu.xxx/` — kalau dipakai di website, developer perlu proxy sendiri untuk menambahkan Referer (di luar scope repo ini).
+- **Player neko:** embed iframe `playmogo.com/e/{id}` — tinggal ditampilkan sebagai `<iframe>`, server alternatif ada di `players[1]`.
+- **Cache:** `scrapeNekoDetail()` di-cache 10 menit (fetch nekopoi lambat).
+
+## Test & CI
+
+```bash
+npm test
 ```
 
-## API Ringkas
-
-| Fungsi | Sumber | Deskripsi |
-|---|---|---|
-| `scrapeMangaList({page, query, type, genre, sort, limit})` | doujindesu | Daftar manga dengan filter |
-| `scrapeMangaDetail(slug)` | doujindesu | Detail manga + chapter |
-| `scrapeChapterImages(id)` | doujindesu | URL gambar chapter |
-| `scrapeGenres()` | doujindesu | Daftar genre + jumlah |
-| `searchManga(query)` | doujindesu | Pencarian |
-| `scrapeNekoList(page)` | nekopoi | Video terbaru (pagination) |
-| `scrapeNekoCategory(category, page)` | nekopoi | Video per kategori |
-| `scrapeNekoDetail(slug)` | nekopoi | Detail post + player iframe |
-| `scrapeNekoCategories()` | nekopoi | Daftar kategori |
-
-## Keamanan
-
-- Semua URL eksternal (cover, gambar chapter, thumbnail, iframe player) divalidasi `safeHttpUrl()` — hanya `http(s)` yang lolos
-- Anti-SSRF `isSafeExternalUrl()` dipakai untuk fetch — menolak alamat internal (127.0.0.1, 10.x, 192.168.x, 169.254.x, ::1, metadata cloud) dan port non-standar
-- Konten HTML dari sumber di-strip (`stripHtml`) sebelum dipakai
-- **Catatan:** `isSafeExternalUrl` mengimpor `node:dns/promises` secara dinamis — hanya berjalan di runtime Node.js, bukan Edge
+Unit test offline (fetch di-mock, tanpa env, tanpa network) — otomatis dijalankan GitHub Actions untuk Node 18/20/22 + smoke test `get-secret` ke API live.
 
 ## Lisensi
 

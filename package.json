@@ -1,11 +1,13 @@
 {
   "name": "doujin-scraper",
   "version": "1.0.0",
-  "description": "Scraper untuk doujin.desu.xxx (API terenkripsi) dan nekopoi.care (WordPress) — aman, tanpa dependensi runtime",
+  "description": "Scraper tanpa dependensi untuk doujin.desu.xxx (API terenkripsi) dan nekopoi.care (WordPress)",
   "main": "lib/scraper.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
-    "test": "node test/run.js"
+    "test": "node --test \"test/*.test.js\"",
+    "get-secret": "node scripts/get-secret.js",
+    "demo": "node scripts/demo.js"
   },
   "engines": {
     "node": ">=18"
