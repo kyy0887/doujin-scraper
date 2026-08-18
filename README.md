@@ -107,6 +107,14 @@ npm test
 
 Unit test offline (fetch di-mock, tanpa env, tanpa network) — otomatis dijalankan GitHub Actions untuk Node 18/20/22 + smoke test `get-secret` ke API live.
 
+## Dukungan
+
+Suka project ini? Traktir kopi untuk pengembang:
+
+[![Trakteer](https://img.shields.io/badge/Trakteer-Dukung%20Pengembang-ff5e5b)](https://trakteer.id/hengki_tamvan1233/tip)
+
+Donasi dipakai untuk pengembangan fitur baru & pemeliharaan scraper.
+
 ## Lisensi
 
 MIT — pakai, fork, dan modifikasi bebas.
