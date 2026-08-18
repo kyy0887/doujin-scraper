@@ -5,7 +5,7 @@
   "main": "lib/scraper.js",
   "type": "module",
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
+    "test": "node --test test/*.test.js",
     "get-secret": "node scripts/get-secret.js",
     "demo": "node scripts/demo.js"
   },
