@@ -113,7 +113,7 @@ Suka project ini? Traktir kopi untuk pengembang:
 
 [![Trakteer](https://img.shields.io/badge/Trakteer-Dukung%20Pengembang-ff5e5b)](https://trakteer.id/hengki_tamvan1233/tip)
 
-Donasi dipakai untuk pengembangan fitur baru & pemeliharaan scraper.
+
 
 ## Lisensi
 
